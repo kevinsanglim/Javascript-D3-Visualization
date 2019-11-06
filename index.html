@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Lab Week 3</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js"></script>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <style>
+    div.tooltip {	
+    position: absolute;			
+    text-align: center;			
+    width: 60px;					
+    height: 45px;					
+    padding: 2px;				
+    font: 12px sans-serif;		
+    background: lightsteelblue;	
+    border: 0px;		
+    border-radius: 8px;			
+    pointer-events: none;			
+    }
+    </style>
+  </head>
+  <body>
+    <h1>Pokemon: Special Defense vs Total Stats</h1>
+    <p>Generation</p>
+    <select id="selectButton"></select>
+    <p>Legendary</p>
+    <select id="selectLegend"></select>
+    <div id="my_dataviz"></div>
+
+    <script>
+        let data = ""
+        let svg = ""
+        const measurements = {
+            width: 800,
+            height: 800,
+            marginAll: 50
+        }
+        const colors = {
+            "Bug": "#4E79A7",
+            "Dark": "#A0CBE8",
+            "Electric": "#F28E2B",
+            "Fairy": "#FFBE&D",
+            "Fighting": "#59A14F",
+            "Fire": "#8CD17D",
+            "Ghost": "#B6992D",
+            "Grass": "#499894",
+            "Ground": "#86BCB6",
+            "Ice": "#86BCB6",
+            "Normal": "#E15759",
+            "Poison": "#FF9D9A",
+            "Psychic": "#79706E",
+            "Steel": "#BAB0AC",
+            "Water": "#D37295",
+            "Dragon": "#FFFF00"
+        }
+
+
+      
+        svg = d3.select('body').append("svg")
+                .attr('width', measurements.width)
+                .attr('height', measurements.height)
+            .append("g")
+
+        d3.csv("data/pokemon.csv").then(function (data) {
+            // Generation filter
+            var allGroup = d3.map(data, function(d){return(d.Generation)}).keys()
+            allGroup.unshift("All")
+            // add the options to the button
+            d3.select("#selectButton")
+            .selectAll("option")
+                .data(allGroup)
+            .enter()
+                .append('option')
+            .text(function (d) { return d; })
+            .attr("value", function (d) { return d; })
+
+            // Legendary filter
+            var allLegend = d3.map(data, function(d){return(d.Legendary)}).keys()
+            allLegend.unshift("All")
+            // add the options to the button
+            d3.select("#selectLegend")
+            .selectAll("option")
+                .data(allLegend)
+            .enter()
+                .append('option')
+            .text(function (d) { return d; })
+            .attr("value", function (d) { return d; })
+
+
+            // Define the div for the tooltip
+        var div = d3.select("body").append("div")	
+            .attr("class", "tooltip")				
+            .style("opacity", 0);
+
+        let SpDef = data.map((row) => parseInt(row["SpDef"]))
+        let Total = data.map((row) =>  parseFloat(row["Total"]))
+
+        const limits = findMinMax(SpDef, Total)
+            
+
+        let scaleX = d3.scaleLinear()
+            .domain([limits.greMin, limits.greMax])
+            .range([0 + measurements.marginAll, measurements.width - measurements.marginAll])
+
+        let scaleY = d3.scaleLinear()
+            .domain([limits.admitMax, limits.admitMin - 0.05])
+            .range([0 + measurements.marginAll, measurements.height - measurements.marginAll])
+
+        drawAxes(scaleX, scaleY)
+
+        var testy = "Steel"
+        const test = function(d) {
+            var keys = Object.keys(colors);
+            var color = "#000000";
+            keys.forEach(function(key) {
+                if (d.Type1 === key) {
+                    color = colors[key];
+                }
+            })
+            return color;
+        }
+
+        const xMap = function(d) { return scaleX(+d["SpDef"]) }
+        const yMap = function(d) { return scaleY(+d["Total"]) }
+
+        const circles = svg.selectAll(".circle");
+        
+        update(d3.select("#selectButton").property("value"),d3.select("#selectLegend").property("value"))
+
+            function update(selectedGroup, selectedLegendary) {
+
+                // Create new data with the selection?
+                var dataFilter = data.filter(function(d){
+                    if (selectedGroup == "All") {
+                        return d.Generation
+                    } else {                        
+                        return d.Generation==selectedGroup
+                    }
+                })
+
+                dataFilter = dataFilter.filter(function(d){
+                    if (selectedLegendary == "All") {
+                        return d.Legendary
+                    } else {                        
+                        return d.Legendary==selectedLegendary
+                    }
+                })
+
+                var testArr = [];
+                dataFilter.forEach(function(d) {
+                    d.test = d.SpDef + "," + d.Total
+                    testArr.push( d.SpDef + "," + d.Total);
+                })
+
+                var sorted_arr = testArr.slice().sort(); // You can define the comparing function here. 
+                                     // JS by default uses a crappy string compare.
+                                     // (we use slice to clone the array so the
+                                     // original array won't be modified)
+                var results = [];
+                for (var i = 0; i < sorted_arr.length - 1; i++) {
+                    if (sorted_arr[i + 1] == sorted_arr[i]) {
+                        results.push(sorted_arr[i]);
+                    }
+                }
+
+                dataFilter.forEach(function(d) {
+                    if (results.includes(d.test)) {
+                        d.UniqueName = "*"
+                    } else {
+                        d.UniqueName = d.Name
+                    }
+                })
+
+                console.log(dataFilter)
+
+                svg.selectAll("circle")
+                    .remove();
+                    circles.data(dataFilter)
+                    .enter()
+                    .append('circle')
+                        .attr('cx', xMap)
+                        .attr('cy', yMap)
+                        .attr('r', 10)
+                        .attr('fill', function(d) {
+                                var keys = Object.keys(colors);
+                                var color = "#000000";
+                                keys.forEach(function(key) {
+                                    if (d.Type1 === key) {
+                                        color = colors[key];
+                                    }
+                                })
+                                return color;
+                            })
+                        .on("mouseover", function(d) {		
+                    div.transition()		
+                        .duration(200)		
+                        .style("opacity", .9);		
+                    div	.html(d.UniqueName +  "<br/>" + d.Type1 + "<br/>" + d.Type2)	
+                        .style("left", (d3.event.pageX) + "px")		
+                        .style("top", (d3.event.pageY - 28) + "px");	
+                    })					
+                    .on("mouseout", function(d) {		
+                        div.transition()		
+                            .duration(500)		
+                            .style("opacity", 0);	
+                    });
+            }
+
+            // When the button is changed, update chart
+            d3.select("#selectButton").on("change", function(d) {
+                var selectedOption = d3.select(this).property("value")
+                var selectedLegend = d3.select("#selectLegend").property("value")
+                update(selectedOption, selectedLegend)
+            })
+
+            // When the button is changed, update chart
+            d3.select("#selectLegend").on("change", function(d) {
+                var selectedLegend = d3.select(this).property("value")
+                var selectedOption = d3.select("#selectButton").property("value")
+                update(selectedOption, selectedLegend)
+            })
+
+        })
+
+        function findMinMax(SpDef, Total) {
+            return {
+                greMin: d3.min(SpDef),
+                greMax: d3.max(SpDef),
+                admitMin: d3.min(Total),
+                admitMax: d3.max(Total)
+            }
+        }
+
+        function drawAxes(scaleX, scaleY) {
+            // these are not HTML elements. They're functions!
+            let xAxis = d3.axisBottom()
+                .scale(scaleX)
+
+            let yAxis = d3.axisLeft()
+                .scale(scaleY)
+            
+            svg.append('g')
+                .attr('transform', 'translate(0,' + (measurements.height - 50) + ')')
+                .call(xAxis)
+
+            svg.append('g')
+                .attr('transform', 'translate(50, 0)')
+                .call(yAxis)
+
+            // text label for the y axis
+            svg.append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 0)
+            .attr("x",0 - (measurements.height/2))
+            .attr("dy", "1em")
+            .style("text-anchor", "middle")
+            .text("Total");  
+
+            // text label for the x axis
+            svg.append("text")
+            .attr("y", (measurements.height - 25))
+            .attr("x",(measurements.width/2))
+            .attr("dy", "1em")
+            .style("text-anchor", "middle")
+            .text("Sp. Def");  
+
+        }
+
+    </script>
+
+  </body>
+</html>
